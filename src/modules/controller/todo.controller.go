@@ -8,6 +8,7 @@ import (
 	"todo/src/pkg/response"
 
 	"github.com/go-chi/chi/v5"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 type TodoController struct {
@@ -19,7 +20,11 @@ func NewTodoController(service *services.TodoService) *TodoController {
 }
 
 func (h *TodoController) GetAllTodos(w http.ResponseWriter, r *http.Request) {
-	todos := h.service.GetAllTodos()
+	todos, err := h.service.GetAllTodos()
+	if err != nil {
+		response.JSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
 	response.JSON(w, http.StatusOK, todos)
 }
 
@@ -39,7 +44,11 @@ func (h *TodoController) CreateTodo(w http.ResponseWriter, r *http.Request) {
 		response.JSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request"})
 		return
 	}
-	createdTodo := h.service.CreateTodo(&todo)
+	createdTodo, err := h.service.CreateTodo(&todo)
+	if err != nil {
+		response.JSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
 	response.JSON(w, http.StatusCreated, createdTodo)
 }
 
@@ -50,7 +59,17 @@ func (h *TodoController) UpdateTodo(w http.ResponseWriter, r *http.Request) {
 		response.JSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request"})
 		return
 	}
-	todo.ID = id
+
+	// Convert id to primitive.ObjectID
+	objID, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		response.JSON(w, http.StatusBadRequest, map[string]string{"error": "invalid ID format"})
+		return
+	}
+
+	// Set the ID on the todo struct
+	todo.ID = objID
+
 	if err := h.service.UpdateTodo(id, &todo); err != nil {
 		response.JSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
 		return

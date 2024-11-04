@@ -1,75 +1,124 @@
 package repository
 
 import (
+	"context"
 	"errors"
-	"sync"
+	"fmt"
+	"time"
 	"todo/src/modules/models"
 
-	"github.com/google/uuid"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-type InMemoryRepo struct {
-	mu    sync.Mutex
-	todos map[string]*models.Todo
+type MongoRepo struct {
+	collection *mongo.Collection
 }
 
-func NewInMemoryRepo() *InMemoryRepo {
-	return &InMemoryRepo{
-		todos: make(map[string]*models.Todo),
+func NewMongoRepo(uri, dbName, collectionName string) (*MongoRepo, error) {
+	clientOptions := options.Client().ApplyURI(uri)
+	client, err := mongo.Connect(context.TODO(), clientOptions)
+	if err != nil {
+		return nil, err
 	}
+
+	collection := client.Database(dbName).Collection(collectionName)
+	return &MongoRepo{collection: collection}, nil
 }
 
-func (repo *InMemoryRepo) GetAll() []*models.Todo {
-	repo.mu.Lock()
-	defer repo.mu.Unlock()
+func (repo *MongoRepo) GetAll() ([]*models.Todo, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	cursor, err := repo.collection.Find(ctx, bson.M{})
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
 
 	var todos []*models.Todo
-	for _, todo := range repo.todos {
-		todos = append(todos, todo)
+	for cursor.Next(ctx) {
+		var todo models.Todo
+		if err := cursor.Decode(&todo); err != nil {
+			return nil, err
+		}
+		todos = append(todos, &todo)
 	}
-	return todos
+
+	return todos, cursor.Err()
 }
 
-func (repo *InMemoryRepo) GetByID(id string) (*models.Todo, error) {
-	repo.mu.Lock()
-	defer repo.mu.Unlock()
+func (repo *MongoRepo) Create(todo *models.Todo) (*models.Todo, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
-	todo, exists := repo.todos[id]
-	if !exists {
-		return nil, errors.New("todo not found")
+	// Generate a new ObjectID for the Todo
+	todo.ID = primitive.NewObjectID()
+	_, err := repo.collection.InsertOne(ctx, todo)
+	return todo, err
+}
+
+func (repo *MongoRepo) Delete(id string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	result, err := repo.collection.DeleteOne(ctx, bson.M{"_id": id})
+	if err != nil {
+		return fmt.Errorf("failed to delete todo: %v", err)
 	}
-	return todo, nil
-}
-
-func (repo *InMemoryRepo) Create(todo *models.Todo) *models.Todo {
-	repo.mu.Lock()
-	defer repo.mu.Unlock()
-
-	todo.ID = uuid.New().String()
-	repo.todos[todo.ID] = todo
-	return todo
-}
-
-func (repo *InMemoryRepo) Update(id string, updatedTodo *models.Todo) error {
-	repo.mu.Lock()
-	defer repo.mu.Unlock()
-
-	if _, exists := repo.todos[id]; !exists {
+	if result.DeletedCount == 0 {
 		return errors.New("todo not found")
 	}
-
-	repo.todos[id] = updatedTodo
 	return nil
 }
+func (repo *MongoRepo) GetByID(id string) (*models.Todo, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
-func (repo *InMemoryRepo) Delete(id string) error {
-	repo.mu.Lock()
-	defer repo.mu.Unlock()
-
-	if _, exists := repo.todos[id]; !exists {
-		return errors.New("todo not found")
+	// Convert string ID to ObjectID
+	objID, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		return nil, fmt.Errorf("invalid ID format: %v", err)
 	}
 
-	delete(repo.todos, id)
+	var todo models.Todo
+	if err := repo.collection.FindOne(ctx, bson.M{"_id": objID}).Decode(&todo); err != nil {
+		if err == mongo.ErrNoDocuments {
+			return nil, errors.New("todo not found")
+		}
+		return nil, fmt.Errorf("failed to retrieve todo: %v", err)
+	}
+	return &todo, nil
+}
+
+func (repo *MongoRepo) Update(id string, updatedTodo *models.Todo) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Convert string ID to ObjectID
+	objID, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		return fmt.Errorf("invalid ID format: %v", err)
+	}
+
+	update := bson.M{"$set": bson.M{
+		"title":   updatedTodo.Title,
+		"content": updatedTodo.Content,
+		"done":    updatedTodo.Done,
+	}}
+
+	result, err := repo.collection.UpdateOne(ctx, bson.M{"_id": objID}, update)
+	if err != nil {
+		return fmt.Errorf("failed to update todo: %v", err)
+	}
+
+	if result.MatchedCount == 0 {
+		return errors.New("todo not found")
+	}
+	if result.ModifiedCount == 0 {
+		return errors.New("todo found but nothing was updated")
+	}
 	return nil
 }

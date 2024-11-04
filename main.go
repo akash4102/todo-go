@@ -16,23 +16,29 @@ import (
 )
 
 func main() {
-
 	err := godotenv.Load()
 	if err != nil {
 		log.Fatal("Error loading .env file")
 		return
 	}
+
+	// MongoDB setup
+	mongoURI := os.Getenv("MONGODB_URI")
+	mongoDB := os.Getenv("MONGODB_DATABASE")
+	mongoCollection := os.Getenv("MONGODB_COLLECTION")
+
+	repo, err := repository.NewMongoRepo(mongoURI, mongoDB, mongoCollection)
+	if err != nil {
+		log.Fatal("Failed to connect to MongoDB:", err)
+		return
+	}
+
 	router := chi.NewRouter()
 	router.Use(middleware.Logger)
 	router.Use(middleware.Recoverer)
 
-	// Setup in-memory repository and services
-	repo := repository.NewInMemoryRepo()
-
-	// Setup services
+	// Setup services and controllers
 	todoService := services.NewTodoService(repo)
-
-	// Setup controller
 	todoController := controller.NewTodoController(todoService)
 
 	// Setup routes
@@ -40,7 +46,7 @@ func main() {
 
 	port := os.Getenv("PORT")
 	if port == "" {
-		log.Fatal("Error Port is not available in .env file")
+		log.Fatal("Error: Port not available in .env file")
 		return
 	}
 	fmt.Printf("Starting server on port %s\n", port)

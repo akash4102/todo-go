@@ -6,14 +6,14 @@ import (
 )
 
 type TodoService struct {
-	repo *repository.InMemoryRepo
+	repo *repository.MongoRepo
 }
 
-func NewTodoService(repo *repository.InMemoryRepo) *TodoService {
+func NewTodoService(repo *repository.MongoRepo) *TodoService {
 	return &TodoService{repo: repo}
 }
 
-func (s *TodoService) GetAllTodos() []*models.Todo {
+func (s *TodoService) GetAllTodos() ([]*models.Todo, error) {
 	return s.repo.GetAll()
 }
 
@@ -21,7 +21,7 @@ func (s *TodoService) GetTodoByID(id string) (*models.Todo, error) {
 	return s.repo.GetByID(id)
 }
 
-func (s *TodoService) CreateTodo(todo *models.Todo) *models.Todo {
+func (s *TodoService) CreateTodo(todo *models.Todo) (*models.Todo, error) {
 	return s.repo.Create(todo)
 }
 
