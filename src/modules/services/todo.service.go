@@ -1,8 +1,11 @@
 package services
 
 import (
+	"context"
 	"todo/src/modules/models"
 	"todo/src/modules/repository"
+
+	"go.mongodb.org/mongo-driver/bson"
 )
 
 type TodoService struct {
@@ -31,4 +34,8 @@ func (s *TodoService) UpdateTodo(id string, todo *models.Todo) error {
 
 func (s *TodoService) DeleteTodo(id string) error {
 	return s.repo.Delete(id)
+}
+
+func (s *TodoService) GetTodoMetrics(ctx context.Context) ([]bson.M, error) {
+	return s.repo.GetTodoMetrics(ctx)
 }

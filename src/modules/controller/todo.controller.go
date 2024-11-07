@@ -1,8 +1,11 @@
 package controller
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"time"
 	"todo/src/modules/models"
 	"todo/src/modules/services"
 	"todo/src/pkg/response"
@@ -84,4 +87,17 @@ func (h *TodoController) DeleteTodo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	response.JSON(w, http.StatusNoContent, nil)
+}
+
+func (h *TodoController) GetTodoMetrics(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	fmt.Println("ctx ",ctx);
+	metrics, err := h.service.GetTodoMetrics(ctx)
+	if err != nil {
+		response.JSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+
+	response.JSON(w, http.StatusOK, metrics)
 }

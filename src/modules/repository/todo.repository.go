@@ -122,3 +122,46 @@ func (repo *MongoRepo) Update(id string, updatedTodo *models.Todo) error {
 	}
 	return nil
 }
+
+func (r *MongoRepo) GetTodoMetrics(ctx context.Context) ([]bson.M, error) {
+	pipeline := mongo.Pipeline{
+		{{Key: "$group", Value: bson.D{
+			{Key: "_id", Value: bson.D{
+				{Key: "date", Value: "$created"},
+				{Key: "type", Value: "$type"},
+				{Key: "completed", Value: "$done"},
+			}},
+			{Key: "taskCount", Value: bson.D{{Key: "$sum", Value: 1}}},
+			{Key: "effortSum", Value: bson.D{{Key: "$sum", Value: "$effortHr"}}},
+		}}},
+		{{Key: "$group", Value: bson.D{
+			{Key: "_id", Value: "$_id.type"},
+			{Key: "totalTasks", Value: bson.D{{Key: "$sum", Value: "$taskCount"}}},
+			{Key: "completedTasks", Value: bson.D{{Key: "$sum", Value: bson.D{{Key: "$cond", Value: bson.A{"$_id.completed", "$taskCount", 0}}}}}},
+			{Key: "notCompletedTasks", Value: bson.D{{Key: "$sum", Value: bson.D{{Key: "$cond", Value: bson.A{"$_id.completed", 0, "$taskCount"}}}}}},
+			{Key: "totalEffort", Value: bson.D{{Key: "$sum", Value: "$effortSum"}}},
+		}}},
+		{{Key: "$addFields", Value: bson.D{
+			{Key: "completionPercentage", Value: bson.D{{Key: "$multiply", Value: bson.A{
+				bson.D{{Key: "$cond", Value: bson.A{
+					bson.D{{Key: "$eq", Value: bson.A{"$totalTasks", 0}}},
+					0,
+					bson.D{{Key: "$divide", Value: bson.A{"$completedTasks", "$totalTasks"}}},
+				}}},
+				100,
+			}}}},
+		}}},
+	}
+
+	cursor, err := r.collection.Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, err
+	}
+
+	var results []bson.M
+	if err := cursor.All(ctx, &results); err != nil {
+		return nil, err
+	}
+
+	return results, nil
+}
