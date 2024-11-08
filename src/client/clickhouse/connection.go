@@ -47,6 +47,7 @@ func (repo *ClickHouseRepo) Close() {
 func (repo *ClickHouseRepo) GetTodoMetrics(ctx context.Context) ([]map[string]interface{}, error) {
 	rows, err := repo.conn.QueryContext(ctx, `
 		SELECT
+			formatDateTime(created, '%Y-%m-%d') AS date,
 			type,
 			COUNT(*) AS total_tasks,
 			SUM(CASE WHEN done = 1 THEN 1 ELSE 0 END) AS completed_tasks,
@@ -54,7 +55,7 @@ func (repo *ClickHouseRepo) GetTodoMetrics(ctx context.Context) ([]map[string]in
 			SUM(effortHr) AS total_effort,
 			IF(COUNT(*) = 0, 0, (SUM(CASE WHEN done = 1 THEN 1 ELSE 0 END) / COUNT(*)) * 100) AS completion_percentage
 		FROM todo_app.todos
-		GROUP BY type;
+		GROUP BY date, type;
 	`)
 	if err != nil {
 		return nil, err
@@ -64,6 +65,7 @@ func (repo *ClickHouseRepo) GetTodoMetrics(ctx context.Context) ([]map[string]in
 	var metrics []map[string]interface{}
 	for rows.Next() {
 		var (
+			date                 string
 			taskType             string
 			totalTasks           uint64
 			completedTasks       uint64
@@ -71,10 +73,11 @@ func (repo *ClickHouseRepo) GetTodoMetrics(ctx context.Context) ([]map[string]in
 			totalEffort          float64
 			completionPercentage float64
 		)
-		if err := rows.Scan(&taskType, &totalTasks, &completedTasks, &notCompletedTasks, &totalEffort, &completionPercentage); err != nil {
+		if err := rows.Scan(&date, &taskType, &totalTasks, &completedTasks, &notCompletedTasks, &totalEffort, &completionPercentage); err != nil {
 			return nil, err
 		}
 		metrics = append(metrics, map[string]interface{}{
+			"date":                  date,
 			"type":                  taskType,
 			"total_tasks":           totalTasks,
 			"completed_tasks":       completedTasks,

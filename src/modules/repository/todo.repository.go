@@ -127,20 +127,28 @@ func (r *MongoRepo) GetTodoMetrics(ctx context.Context) ([]bson.M, error) {
 	pipeline := mongo.Pipeline{
 		{{Key: "$group", Value: bson.D{
 			{Key: "_id", Value: bson.D{
-				{Key: "date", Value: "$created"},
+				{Key: "date", Value: bson.D{{Key: "$dateToString", Value: bson.D{
+					{Key: "format", Value: "%Y-%m-%d"},
+					{Key: "date", Value: "$created"},
+				}}}},
 				{Key: "type", Value: "$type"},
 				{Key: "completed", Value: "$done"},
 			}},
 			{Key: "taskCount", Value: bson.D{{Key: "$sum", Value: 1}}},
 			{Key: "effortSum", Value: bson.D{{Key: "$sum", Value: "$effortHr"}}},
 		}}},
+
 		{{Key: "$group", Value: bson.D{
-			{Key: "_id", Value: "$_id.type"},
+			{Key: "_id", Value: bson.D{
+				{Key: "date", Value: "$_id.date"},
+				{Key: "type", Value: "$_id.type"},
+			}},
 			{Key: "totalTasks", Value: bson.D{{Key: "$sum", Value: "$taskCount"}}},
 			{Key: "completedTasks", Value: bson.D{{Key: "$sum", Value: bson.D{{Key: "$cond", Value: bson.A{"$_id.completed", "$taskCount", 0}}}}}},
 			{Key: "notCompletedTasks", Value: bson.D{{Key: "$sum", Value: bson.D{{Key: "$cond", Value: bson.A{"$_id.completed", 0, "$taskCount"}}}}}},
 			{Key: "totalEffort", Value: bson.D{{Key: "$sum", Value: "$effortSum"}}},
 		}}},
+
 		{{Key: "$addFields", Value: bson.D{
 			{Key: "completionPercentage", Value: bson.D{{Key: "$multiply", Value: bson.A{
 				bson.D{{Key: "$cond", Value: bson.A{
