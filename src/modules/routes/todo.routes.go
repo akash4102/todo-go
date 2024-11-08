@@ -13,6 +13,7 @@ func TodoRoutes(router chi.Router, todoController *controller.TodoController) {
 		r.Post("/", todoController.CreateTodo)
 		r.Put("/{id}", todoController.UpdateTodo)
 		r.Delete("/{id}", todoController.DeleteTodo)
-		r.Get("/metrics", todoController.GetTodoMetrics)
+		r.Get("/metrics/clickhouse", todoController.GetTodoMetricsClickHouse)
+		r.Get("/metrics/mongodb", todoController.GetTodoMetricsMongodb)
 	})
 }

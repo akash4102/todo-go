@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"todo/src/client/clickhouse"
 	"todo/src/modules/models"
 	"todo/src/modules/repository"
 
@@ -9,11 +10,12 @@ import (
 )
 
 type TodoService struct {
-	repo *repository.MongoRepo
+	repo       *repository.MongoRepo
+	clickHouse *clickhouse.ClickHouseRepo
 }
 
-func NewTodoService(repo *repository.MongoRepo) *TodoService {
-	return &TodoService{repo: repo}
+func NewTodoService(repo *repository.MongoRepo, clickHouse *clickhouse.ClickHouseRepo) *TodoService {
+	return &TodoService{repo: repo, clickHouse: clickHouse}
 }
 
 func (s *TodoService) GetAllTodos() ([]*models.Todo, error) {
@@ -36,6 +38,10 @@ func (s *TodoService) DeleteTodo(id string) error {
 	return s.repo.Delete(id)
 }
 
-func (s *TodoService) GetTodoMetrics(ctx context.Context) ([]bson.M, error) {
+func (s *TodoService) GetTodoMetricsMongodb(ctx context.Context) ([]bson.M, error) {
 	return s.repo.GetTodoMetrics(ctx)
+}
+
+func (s *TodoService) GetTodoMetricsClickHouse(ctx context.Context) ([]map[string]interface{}, error) {
+	return s.clickHouse.GetTodoMetrics(ctx)
 }

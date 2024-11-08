@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"todo/src/client/clickhouse"
 	"todo/src/modules/controller"
 	"todo/src/modules/repository"
 	"todo/src/modules/routes"
@@ -37,8 +38,15 @@ func main() {
 	router.Use(middleware.Logger)
 	router.Use(middleware.Recoverer)
 
+	clickHouseRepo, err := clickhouse.NewClickHouseRepo()
+	if err != nil {
+		log.Fatal("Failed to connect to ClickHouse:", err)
+		return
+	}
+	defer clickHouseRepo.Close()
+
 	// Setup services and controllers
-	todoService := services.NewTodoService(repo)
+	todoService := services.NewTodoService(repo,clickHouseRepo)
 	todoController := controller.NewTodoController(todoService)
 
 	// Setup routes

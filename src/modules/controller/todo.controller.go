@@ -3,7 +3,6 @@ package controller
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"time"
 	"todo/src/modules/models"
@@ -89,11 +88,10 @@ func (h *TodoController) DeleteTodo(w http.ResponseWriter, r *http.Request) {
 	response.JSON(w, http.StatusNoContent, nil)
 }
 
-func (h *TodoController) GetTodoMetrics(w http.ResponseWriter, r *http.Request) {
+func (h *TodoController) GetTodoMetricsClickHouse(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	fmt.Println("ctx ",ctx);
-	metrics, err := h.service.GetTodoMetrics(ctx)
+	metrics, err := h.service.GetTodoMetricsClickHouse(ctx)
 	if err != nil {
 		response.JSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
@@ -101,3 +99,15 @@ func (h *TodoController) GetTodoMetrics(w http.ResponseWriter, r *http.Request) 
 
 	response.JSON(w, http.StatusOK, metrics)
 }
+func (h *TodoController) GetTodoMetricsMongodb(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	metrics, err := h.service.GetTodoMetricsMongodb(ctx)
+	if err != nil {
+		response.JSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+
+	response.JSON(w, http.StatusOK, metrics)
+}
+
